@@ -58,13 +58,18 @@ public class PredictionButtonsAdapter extends RecyclerView.Adapter<PredictionBut
         notifyItemRangeInserted(startIndex, newPredictions.size());
     }
 
+    public void clear() {
+        predictions.clear();
+        notifyDataSetChanged();
+    }
+
     static class ViewHolder extends RecyclerView.ViewHolder {
         public Button mButton;
 
         public ViewHolder(View itemView) {
             super(itemView);
             mButton = itemView.findViewById(R.id.prediction_button);
-            ;
+
         }
     }
 }
