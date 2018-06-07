@@ -1,32 +1,26 @@
 package fr.esgi.textprediction;
 
-import android.arch.persistence.db.SupportSQLiteDatabase;
-import android.arch.persistence.room.migration.Migration;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.huma.room_for_asset.RoomAsset;
-
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import fr.esgi.textprediction.data.DatabaseManager;
 import fr.esgi.textprediction.data.PredictionDatabase;
+import fr.esgi.textprediction.data.dao.PredictionDao;
 import fr.esgi.textprediction.data.entities.Prediction;
-import fr.esgi.textprediction.recommender.FrenchRecommender;
-import fr.esgi.textprediction.recommender.IRecommender;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,33 +32,16 @@ public class MainActivity extends AppCompatActivity {
     private PredictionButtonsAdapter predictionButtonsAdapter;
     private LinearLayoutManager mLayoutManager;
 
-    private IRecommender recommender;
-
     private PredictionDatabase database;
+
+    private RecommendTask recommendTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                database = RoomAsset
-                        .databaseBuilder(getApplicationContext(), PredictionDatabase.class, "output.db")
-                        .addMigrations(new Migration(1, 2) {
-                            @Override
-                            public void migrate(@NonNull SupportSQLiteDatabase database) {
-                            }
-                        })
-                        .build();
-
-                Log.d("RoomAsset", String.format("Is database open: %s", database.isOpen()));
-                Prediction prediction = database.predictionDao().predictOneGram("je");
-                Log.d("RoomAsset", String.format("Prediction: %s", prediction));
-            }
-        }).start();
+        database = DatabaseManager.getInstance().getDatabase();
 
         listPredictions = findViewById(R.id.list_predictions);
         predictableInput = findViewById(R.id.input_text);
@@ -102,9 +79,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
                 String input = s.toString();
-                if (recommender == null) {
-                    recommender = new FrenchRecommender();
-                }
                 recommend_predicted(input);
             }
         });
@@ -114,19 +88,15 @@ public class MainActivity extends AppCompatActivity {
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                         || actionId == EditorInfo.IME_ACTION_DONE) {
-                    predictedTextView.append(" " + predictableInput.getText());
+                    predictedTextView.append(predictableInput.getText() + "\n");
                     predictableInput.setText("");
-
                     return true;
                 }
                 return false;
             }
         });
 
-        recommender = new FrenchRecommender();
-
-        recommend_predicted("");
-
+        recommend_predicted("je suis");
     }
 
     private void recommend_predicted(String input) {
@@ -135,14 +105,53 @@ public class MainActivity extends AppCompatActivity {
         if (lastChar.isEmpty() || Pattern.matches(PUNCTUATION_PATTERN, lastChar)) {
 
             String[] tokens = input.split(PUNCTUATION_PATTERN);
-            Log.d("Prediction", String.format("Split string tokens: %s", Arrays.asList(tokens).toString()));
 
-            List<String> predictions = recommender.recommend(Arrays.asList(tokens));
-            List<String> pred = new ArrayList<>(predictions);
-            Log.d("Prediction", String.format("Predictions: %s", pred.toString()));
+            recommendTask = new RecommendTask();
+            recommendTask.execute(tokens);
 
-            predictionButtonsAdapter.clear();
-            predictionButtonsAdapter.addAll(pred);
+        }
+    }
+
+    private class RecommendTask extends AsyncTask<String, Void, List<Prediction>> {
+        private List<Prediction> predictions;
+        private PredictionDao dao;
+
+        @Override
+        protected void onPreExecute() {
+            if (dao == null) {
+                dao = database.predictionDao();
+            }
+            predictions = new ArrayList<>();
+        }
+
+        @Override
+        protected List<Prediction> doInBackground(String... inputWords) {
+            predictions = searchForPredictions((inputWords.length > 3 ? 3 : inputWords.length), inputWords);
+            return predictions;
+        }
+
+        @Override
+        protected void onPostExecute(List<Prediction> predictions) {
+            predictionButtonsAdapter.newPredictions(predictions);
+        }
+
+        protected List<Prediction> searchForPredictions(int gram, String... inputWords) {
+            if (gram == 1) {
+                predictions = dao.predictOneGram(inputWords[inputWords.length - 1]);
+            } else if (gram == 2) {
+                predictions = dao.predictTwoGram(inputWords[inputWords.length - 2], inputWords[inputWords.length - 1]);
+            } else if (gram == 3) {
+                predictions = dao.predictThreeGram(
+                        inputWords[inputWords.length - 3],
+                        inputWords[inputWords.length - 2],
+                        inputWords[inputWords.length - 1]
+                );
+            }
+
+            if (gram > 1 && (predictions == null || predictions.isEmpty())) {
+                predictions = searchForPredictions(gram - 1, inputWords);
+            }
+            return predictions;
         }
     }
 

@@ -12,6 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="100dp"
         android:layout_weight="300"
+        android:textSize="22sp"
         android:hint="Your predicted text" />
 
 
@@ -27,6 +28,7 @@
         android:id="@+id/input_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Type here" />
+        android:hint="Type here"
+        android:inputType="textNoSuggestions" />
 
 </LinearLayout>

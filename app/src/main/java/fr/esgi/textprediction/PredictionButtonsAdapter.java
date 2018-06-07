@@ -11,6 +11,8 @@ import android.widget.Button;
 import java.util.Collection;
 import java.util.List;
 
+import fr.esgi.textprediction.data.entities.Prediction;
+
 /**
  * Created by Jean-Christophe Melikian on 05/06/2018.
  */
@@ -61,6 +63,13 @@ public class PredictionButtonsAdapter extends RecyclerView.Adapter<PredictionBut
     public void clear() {
         predictions.clear();
         notifyDataSetChanged();
+    }
+
+    public void newPredictions(List<Prediction> predictions) {
+        clear();
+        for (Prediction pred : predictions) {
+            add(pred.getPrediction());
+        }
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
