@@ -1,6 +1,9 @@
 package fr.esgi.textprediction;
 
+import android.arch.persistence.db.SupportSQLiteDatabase;
+import android.arch.persistence.room.migration.Migration;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -13,11 +16,15 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.huma.room_for_asset.RoomAsset;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import fr.esgi.textprediction.data.PredictionDatabase;
+import fr.esgi.textprediction.data.entities.Prediction;
 import fr.esgi.textprediction.recommender.FrenchRecommender;
 import fr.esgi.textprediction.recommender.IRecommender;
 
@@ -33,10 +40,31 @@ public class MainActivity extends AppCompatActivity {
 
     private IRecommender recommender;
 
+    private PredictionDatabase database;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                database = RoomAsset
+                        .databaseBuilder(getApplicationContext(), PredictionDatabase.class, "output.db")
+                        .addMigrations(new Migration(1, 2) {
+                            @Override
+                            public void migrate(@NonNull SupportSQLiteDatabase database) {
+                            }
+                        })
+                        .build();
+
+                Log.d("RoomAsset", String.format("Is database open: %s", database.isOpen()));
+                Prediction prediction = database.predictionDao().predictOneGram("je");
+                Log.d("RoomAsset", String.format("Prediction: %s", prediction));
+            }
+        }).start();
 
         listPredictions = findViewById(R.id.list_predictions);
         predictableInput = findViewById(R.id.input_text);
